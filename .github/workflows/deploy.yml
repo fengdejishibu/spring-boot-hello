@@ -1,0 +1,63 @@
+name: Build and Deploy to Alibaba Cloud
+
+on:
+  push:
+    branches:
+      - main  # 当 push 到 main 分支时触发
+
+env:
+  DOCKER_IMAGE: ${{ secrets.ACR_REGISTRY }}/spring-boot-hello
+  VERSION: latest
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 检出代码
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. 设置 JDK 17
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'maven'
+
+      # 3. 构建 Spring Boot 项目
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+
+      # 4. 登录阿里云 ACR
+      - name: Login to Alibaba Cloud ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      # 5. 构建并推送 Docker 镜像
+      - name: Build and push Docker image
+        run: |
+          docker build -t ${{ env.DOCKER_IMAGE }}:${{ env.VERSION }} .
+          docker push ${{ env.DOCKER_IMAGE }}:${{ env.VERSION }}
+
+      # 6. 部署到阿里云 ECS
+      - name: Deploy to Alibaba Cloud ECS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          port: ${{ secrets.ECS_PORT }}
+          username: root
+          key: ${{ secrets.ECS_SSH_KEY }}
+          script: |
+            cd /opt/spring-boot-hello
+            docker pull ${{ env.DOCKER_IMAGE }}:${{ env.VERSION }}
+            docker stop spring-boot-hello || true
+            docker rm spring-boot-hello || true
+            docker run -d --name spring-boot-hello \
+              --restart unless-stopped \
+              -p 8080:8080 \
+              ${{ env.DOCKER_IMAGE }}:${{ env.VERSION }}
