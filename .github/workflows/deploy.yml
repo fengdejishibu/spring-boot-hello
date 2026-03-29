@@ -6,7 +6,7 @@ on:
       - main  # 当 push 到 main 分支时触发
 
 env:
-  DOCKER_IMAGE: ${{ secrets.ACR_REGISTRY }}/spring-boot-hello
+  DOCKER_IMAGE: ${{ secrets.ACR_REGISTRY }}/tubuxitong/tubuxingzou
   VERSION: latest
 
 jobs:
